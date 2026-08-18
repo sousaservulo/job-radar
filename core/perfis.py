@@ -43,6 +43,38 @@ from core.config_intl import (
     MERCADOS_REMOTO_ACEITOS_INTL,
     IDIOMAS_EXIGIDOS_INTL,
 )
+
+from core.config_dev import (
+    KEYWORDS_DEV,
+    KEYWORDS_CARGO_FORTE_DEV,
+    KEYWORDS_CARGO_AMBIGUO_DEV,
+    QUALIFICADORES_DEV,
+    FERRAMENTAS_TITULO_DEV,
+    QUALIFICADORES_CARGO_DEV,
+    CIDADES_DEV,
+    MERCADOS_REMOTO_ACEITOS_DEV,
+    TERMOS_BUSCA_DEV,
+    TERMOS_POR_CICLO_DEV,
+    LOCATIONS_LINKEDIN_DEV,
+    LOCATIONS_LINKEDIN_REMOTO_DEV,
+    LOCATIONS_LINKEDIN_CIDADES_DEV,
+)
+
+from core.config_suporte import (
+    KEYWORDS_SUPORTE,
+    KEYWORDS_CARGO_FORTE_SUPORTE,
+    KEYWORDS_CARGO_AMBIGUO_SUPORTE,
+    QUALIFICADORES_SUPORTE,
+    FERRAMENTAS_TITULO_SUPORTE,
+    QUALIFICADORES_CARGO_SUPORTE,
+    CIDADES_SUPORTE,
+    MERCADOS_REMOTO_ACEITOS_SUPORTE,
+    TERMOS_BUSCA_SUPORTE,
+    TERMOS_POR_CICLO_SUPORTE,
+    LOCATIONS_LINKEDIN_SUPORTE,
+    LOCATIONS_LINKEDIN_REMOTO_SUPORTE,
+    LOCATIONS_LINKEDIN_CIDADES_SUPORTE,
+)
 from core.job import RegrasFiltro
 from scrapers.catho import CathoScraper
 from scrapers.geekhunter import GeekHunterScraper
@@ -232,7 +264,95 @@ PERFIL_INTL = Perfil(
     max_scrapers_concorrentes=3,
 )
 
+_REGRAS_DEV = RegrasFiltro(
+    keywords_forte=KEYWORDS_CARGO_FORTE_DEV,
+    keywords_ambiguo=KEYWORDS_CARGO_AMBIGUO_DEV,
+    qualificadores_dados=QUALIFICADORES_DEV,
+    ferramentas_titulo=FERRAMENTAS_TITULO_DEV,
+    qualificadores_cargo=QUALIFICADORES_CARGO_DEV,
+    cidades=CIDADES_DEV,
+    mercados_remoto_aceitos=MERCADOS_REMOTO_ACEITOS_DEV,
+)
+
+_SCRAPERS_DEV = [
+    DefinicaoScraper(GupyScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(
+        LinkedInScraper,
+        FREQUENCIA_ALTA,
+        {
+            "locations": LOCATIONS_LINKEDIN_DEV,
+            "locations_remoto_apenas": LOCATIONS_LINKEDIN_REMOTO_DEV,
+            "locations_cidades_presencial": LOCATIONS_LINKEDIN_CIDADES_DEV,
+        },
+    ),
+    DefinicaoScraper(SolidesScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(IndeedScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(CathoScraper, FREQUENCIA_BAIXA),
+    DefinicaoScraper(GeekHunterScraper, FREQUENCIA_BAIXA),
+    DefinicaoScraper(Jobs99Scraper, FREQUENCIA_BAIXA),
+]
+
+PERFIL_DEV = Perfil(
+    chave="dev",
+    nome="Desenvolvimento",
+    palavras_monitoradas=KEYWORDS_DEV,
+    paises_pesquisados=None,
+    regras=_REGRAS_DEV,
+    regras_eixo_secundario=None,
+    eixo_secundario_ativo=False,
+    eixo_secundario_rotulo="",
+    termos_busca=TERMOS_BUSCA_DEV,
+    termos_por_ciclo=TERMOS_POR_CICLO_DEV,
+    definicao_scrapers=_SCRAPERS_DEV,
+    max_scrapers_concorrentes=4,
+)
+
+
+_REGRAS_SUPORTE = RegrasFiltro(
+    keywords_forte=KEYWORDS_CARGO_FORTE_SUPORTE,
+    keywords_ambiguo=KEYWORDS_CARGO_AMBIGUO_SUPORTE,
+    qualificadores_dados=QUALIFICADORES_SUPORTE,
+    ferramentas_titulo=FERRAMENTAS_TITULO_SUPORTE,
+    qualificadores_cargo=QUALIFICADORES_CARGO_SUPORTE,
+    cidades=CIDADES_SUPORTE,
+    mercados_remoto_aceitos=MERCADOS_REMOTO_ACEITOS_SUPORTE,
+)
+
+_SCRAPERS_SUPORTE = [
+    DefinicaoScraper(GupyScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(
+        LinkedInScraper,
+        FREQUENCIA_ALTA,
+        {
+            "locations": LOCATIONS_LINKEDIN_SUPORTE,
+            "locations_remoto_apenas": LOCATIONS_LINKEDIN_REMOTO_SUPORTE,
+            "locations_cidades_presencial": LOCATIONS_LINKEDIN_CIDADES_SUPORTE,
+        },
+    ),
+    DefinicaoScraper(SolidesScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(IndeedScraper, FREQUENCIA_ALTA),
+    DefinicaoScraper(CathoScraper, FREQUENCIA_BAIXA),
+    DefinicaoScraper(Jobs99Scraper, FREQUENCIA_BAIXA),
+]
+
+PERFIL_SUPORTE = Perfil(
+    chave="suporte",
+    nome="Suporte / Service Desk",
+    palavras_monitoradas=KEYWORDS_SUPORTE,
+    paises_pesquisados=None,
+    regras=_REGRAS_SUPORTE,
+    regras_eixo_secundario=None,
+    eixo_secundario_ativo=False,
+    eixo_secundario_rotulo="",
+    termos_busca=TERMOS_BUSCA_SUPORTE,
+    termos_por_ciclo=TERMOS_POR_CICLO_SUPORTE,
+    definicao_scrapers=_SCRAPERS_SUPORTE,
+    max_scrapers_concorrentes=4,
+)
+
 PERFIS = {
     PERFIL_BR.chave: PERFIL_BR,
     PERFIL_INTL.chave: PERFIL_INTL,
+    PERFIL_DEV.chave: PERFIL_DEV,
+    PERFIL_SUPORTE.chave: PERFIL_SUPORTE,
 }

@@ -401,8 +401,9 @@ def main():
         nargs="+",
         choices=sorted(PERFIS.keys()),
         help=(
-            "Qual(is) mercado(s) rodar nesta execução — 'brasil', 'internacional', "
-            "ou os dois (--perfil brasil internacional)."
+            "Qual(is) perfil(is) rodar nesta execução. "
+            "Opções: brasil, internacional, dev e suporte. "
+            "É possível informar mais de um perfil."
         ),
     )
     parser.add_argument(
