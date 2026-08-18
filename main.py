@@ -153,19 +153,18 @@ def _enviar_digest_diario(perfil: Perfil):
     pelo GitHub Actions naquele dia).
     """
     chave = f"digest_ultimo_dia_{perfil.chave}"
-    hoje = date.today()
     agora = datetime.now(timezone.utc)
+    hoje = agora.date()
 
     ultimo_envio_str = obter_metadado(chave)
     se_ja_enviou_hoje = ultimo_envio_str == hoje.isoformat()
+
     if se_ja_enviou_hoje:
         return
 
-    horario_certo = agora.hour == DIGEST_HORA_UTC
-    atrasado = ultimo_envio_str is not None and (
-        hoje - date.fromisoformat(ultimo_envio_str)
-    ).days >= 2
-    if not (horario_certo or atrasado):
+    horario_atingido = agora.hour >= DIGEST_HORA_UTC
+
+    if not horario_atingido:
         return
 
     vagas_pendentes = obter_vagas_pendentes_digest(perfil.chave)

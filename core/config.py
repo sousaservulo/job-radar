@@ -304,7 +304,7 @@ LIMIAR_DIGEST_IMEDIATO = 7
 # ver _enviar_digest_diario). 0 = meia-noite UTC = 21h em Brasília (UTC-3).
 # O cron do workflow (0 */3 * * *) já passa por essa hora exata todo dia,
 # então não precisa de agendamento à parte.
-DIGEST_HORA_UTC = 0
+DIGEST_HORA_UTC = 9
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
