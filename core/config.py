@@ -298,7 +298,7 @@ INTERVALO_MINUTOS = int(os.getenv("INTERVALO_MINUTOS", 180))
 # com o pedido ("vaga de score alto na hora, resto agrupado"); 6 deixava
 # 74% imediata (pouca redução de ruído); 8 deixava só 2% (digest com
 # praticamente tudo, quase nenhuma vaga "excelente" se destacando na hora).
-LIMIAR_DIGEST_IMEDIATO = 7
+LIMIAR_DIGEST_IMEDIATO = 6
 
 # Hora UTC em que o digest diário dispara (uma vez por perfil, por dia —
 # ver _enviar_digest_diario). 0 = meia-noite UTC = 21h em Brasília (UTC-3).
@@ -307,7 +307,15 @@ LIMIAR_DIGEST_IMEDIATO = 7
 DIGEST_HORA_UTC = 9
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+# Chat principal/operacional. Mantido para heartbeat, alertas e
+# compatibilidade com a configuração original.
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# Faixas de relevância
+TELEGRAM_CHAT_ID_5 = os.getenv("TELEGRAM_CHAT_ID_5", TELEGRAM_CHAT_ID)
+TELEGRAM_CHAT_ID_6 = os.getenv("TELEGRAM_CHAT_ID_6", TELEGRAM_CHAT_ID)
+TELEGRAM_CHAT_ID_7 = os.getenv("TELEGRAM_CHAT_ID_7", TELEGRAM_CHAT_ID)
 
 # Caminho ancorado na RAIZ do projeto, não na pasta deste arquivo.
 #

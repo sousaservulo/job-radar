@@ -43,6 +43,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID_5: ${{ secrets.TELEGRAM_CHAT_ID_5 }}
+          TELEGRAM_CHAT_ID_6: ${{ secrets.TELEGRAM_CHAT_ID_6 }}
+          TELEGRAM_CHAT_ID_7: ${{ secrets.TELEGRAM_CHAT_ID_7 }}
         # Antes disso só o perfil Brasil rodava aqui — main_intl.py existia
         # no repositório mas nunca foi chamado pelo workflow, então o
         # pipeline internacional nunca rodou de verdade em produção. Agora é

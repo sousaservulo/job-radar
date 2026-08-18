@@ -3,22 +3,45 @@ import json
 
 import requests
 
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.config import (
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
+    TELEGRAM_CHAT_ID_5,
+    TELEGRAM_CHAT_ID_6,
+    TELEGRAM_CHAT_ID_7,
+)
 from database.database import definir_feedback, definir_metadado, obter_metadado
 from core.logger import get_logger
 
 logger = get_logger()
 
+def _chat_id_por_relevancia(pontos: int) -> str:
+    if pontos >= 7:
+        return TELEGRAM_CHAT_ID_7
+    if pontos >= 6:
+        return TELEGRAM_CHAT_ID_6
+    if pontos >= 5:
+        return TELEGRAM_CHAT_ID_5
+    return ""
 
-def enviar_mensagem(texto: str, reply_markup: dict | None = None) -> bool:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        logger.warning("Telegram não configurado (token/chat_id ausentes no .env). Pulando envio.")
+
+def enviar_mensagem(
+    texto: str,
+    reply_markup: dict | None = None,
+    chat_id: str | None = None,
+) -> bool:
+    destino = TELEGRAM_CHAT_ID if chat_id is None else chat_id
+
+    if not TELEGRAM_BOT_TOKEN or not destino:
+        logger.warning(
+            "Telegram não configurado (token/chat_id ausentes). Pulando envio."
+        )
         return False
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
     payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
+        "chat_id": destino,
         "text": texto,
         "parse_mode": "HTML",
         "disable_web_page_preview": False,
@@ -125,7 +148,11 @@ def notificar_vaga(job) -> bool:
         f"Encontrada agora\n\n"
         f"<b>Link:</b>\n{job.link}"
     )
-    return enviar_mensagem(texto, reply_markup=_teclado_feedback(job.id))
+    return enviar_mensagem(
+        texto,
+        reply_markup=_teclado_feedback(job.id),
+        chat_id=_chat_id_por_relevancia(job.relevancia),
+    )
 
 
 def notificar_vaga_exploratoria(job) -> bool:
@@ -154,7 +181,11 @@ def notificar_vaga_exploratoria(job) -> bool:
         f"como remota, pode ser presencial ou híbrida. Confirma no link.\n\n"
         f"<b>Link:</b>\n{job.link}"
     )
-    return enviar_mensagem(texto, reply_markup=_teclado_feedback(job.id))
+    return enviar_mensagem(
+        texto,
+        reply_markup=_teclado_feedback(job.id),
+        chat_id=_chat_id_por_relevancia(job.relevancia),
+    )
 
 
 # Margem sob o limite real do Telegram (4096 caracteres por mensagem) —
@@ -199,14 +230,58 @@ def montar_digest(vagas: list[tuple], rotulo_perfil: str) -> list[str]:
 
 
 def enviar_digest(vagas: list[tuple], rotulo_perfil: str) -> bool:
-    """Manda todas as partes do digest em sequência. Só True se TODAS
-    confirmarem — ver marcar_digest_enviado em database.py: o chamador só
-    limpa a fila com esse retorno True, então falha parcial mantém tudo
-    pendente (inclusive parte já enviada com sucesso) pro próximo envio.
-    Preferir duplicar uma parte a perder vaga que nunca chegou a notificar."""
+    """
+    Distribui o digest pelas faixas de relevância.
+
+    Score 5  -> grupo 5
+    Score 6  -> grupo 6 (normalmente só vagas antigas chegam ao digest)
+    Score 7+ -> grupo 7 (normalmente só vagas antigas chegam ao digest)
+    Score <5 -> não é enviado.
+    """
     if not vagas:
         return True
-    return all(enviar_mensagem(mensagem) for mensagem in montar_digest(vagas, rotulo_perfil))
+
+    faixas = [
+        (
+            "5.0–5.9",
+            TELEGRAM_CHAT_ID_5,
+            lambda pontos: pontos == 5,
+        ),
+        (
+            "6.0–6.9",
+            TELEGRAM_CHAT_ID_6,
+            lambda pontos: pontos == 6,
+        ),
+        (
+            "7.0+",
+            TELEGRAM_CHAT_ID_7,
+            lambda pontos: pontos >= 7,
+        ),
+    ]
+
+    for rotulo_faixa, chat_id, pertence in faixas:
+        vagas_faixa = [
+            vaga
+            for vaga in vagas
+            if pertence(int(vaga[3] or 0))
+        ]
+
+        if not vagas_faixa:
+            continue
+
+        if not chat_id:
+            logger.warning(
+                f"Chat Telegram da faixa {rotulo_faixa} não configurado."
+            )
+            return False
+
+        rotulo = f"{rotulo_perfil} | {rotulo_faixa}"
+
+        for mensagem in montar_digest(vagas_faixa, rotulo):
+            if not enviar_mensagem(mensagem, chat_id=chat_id):
+                return False
+
+    return True
 
 
 def _chamar_api_telegram(metodo: str, payload: dict) -> dict | None:
@@ -265,7 +340,18 @@ def processar_feedback_pendente():
     próprio Telegram que tudo até N já foi visto — sem isso, o mesmo
     clique seria reprocessado em todo ciclo daqui pra frente.
     """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    chats_permitidos = {
+    str(chat_id)
+    for chat_id in (
+        TELEGRAM_CHAT_ID,
+        TELEGRAM_CHAT_ID_5,
+        TELEGRAM_CHAT_ID_6,
+        TELEGRAM_CHAT_ID_7,
+    )
+    if chat_id
+}
+
+    if not TELEGRAM_BOT_TOKEN or not chats_permitidos:
         return
 
     payload = {
@@ -299,7 +385,7 @@ def processar_feedback_pendente():
         # de uso pessoal, um chat só" que o resto do projeto assume.
         mensagem = callback.get("message") or {}
         chat_id = str((mensagem.get("chat") or {}).get("id", ""))
-        if not chat_id or chat_id != str(TELEGRAM_CHAT_ID):
+        if not chat_id or chat_id not in chats_permitidos:
             continue
 
         parseado = _parsear_callback_data(callback.get("data", ""))
