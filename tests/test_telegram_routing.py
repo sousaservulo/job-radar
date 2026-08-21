@@ -137,3 +137,96 @@ def test_digest_com_apenas_score_abaixo_de_5_nao_envia(
 
     assert telegram.enviar_digest(vagas, "Brasil") is True
     assert envios == []
+
+
+def test_telegram_429_aguarda_retry_after_e_tenta_novamente(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        telegram,
+        "TELEGRAM_BOT_TOKEN",
+        "token-teste",
+    )
+    monkeypatch.setattr(
+        telegram,
+        "TELEGRAM_CHAT_ID_7",
+        "chat-7",
+    )
+
+    # Neste teste queremos validar só o retry do 429,
+    # não o throttle entre mensagens.
+    monkeypatch.setattr(
+        telegram,
+        "_aguardar_limite_chat",
+        lambda chat_id: None,
+    )
+
+    sleeps = []
+
+    monkeypatch.setattr(
+        telegram.time,
+        "sleep",
+        lambda segundos: sleeps.append(segundos),
+    )
+
+    class Resposta429:
+        status_code = 429
+        reason = "Too Many Requests"
+
+        def json(self):
+            return {
+                "ok": False,
+                "parameters": {
+                    "retry_after": 2,
+                },
+            }
+
+        def raise_for_status(self):
+            raise AssertionError(
+                "raise_for_status não deve ser chamado "
+                "antes do retry do 429"
+            )
+
+    class RespostaOK:
+        status_code = 200
+        reason = "OK"
+
+        def json(self):
+            return {"ok": True}
+
+        def raise_for_status(self):
+            return None
+
+    respostas = [
+        Resposta429(),
+        RespostaOK(),
+    ]
+
+    chamadas = []
+
+    def fake_post(url, data, timeout):
+        chamadas.append(
+            {
+                "url": url,
+                "data": data,
+                "timeout": timeout,
+            }
+        )
+        return respostas.pop(0)
+
+    monkeypatch.setattr(
+        telegram.requests,
+        "post",
+        fake_post,
+    )
+
+    resultado = telegram.enviar_mensagem(
+        "Teste",
+        chat_id="chat-7",
+    )
+
+    assert resultado is True
+    assert len(chamadas) == 2
+
+    # retry_after=2 + margem de 1 segundo
+    assert sleeps == [3]

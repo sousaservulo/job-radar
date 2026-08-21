@@ -107,22 +107,22 @@ CIDADES_DEV = [
 
 MERCADOS_REMOTO_ACEITOS_DEV = [
     "Brasil",
-    "Portugal",
-    "Estados Unidos",
-    "Canadá",
-    "Uruguai",
-    "Paraguai",
+   # "Portugal", 
+   # "Estados Unidos",
+   # "Canadá",
+   # "Uruguai",
+   # "Paraguai",
 ]
 
 LOCATIONS_LINKEDIN_DEV = []
 
 LOCATIONS_LINKEDIN_REMOTO_DEV = [
     "Brasil",
-    "Portugal",
-    "United States",
-    "Canada",
-    "Uruguay",
-    "Paraguay",
+    # "Portugal",
+    # "United States",
+    # "Canada",
+    #"Uruguay",
+    # "Paraguay",
 ]
 
 LOCATIONS_LINKEDIN_CIDADES_DEV = [

@@ -1,5 +1,5 @@
-
 import json
+import time
 
 import requests
 
@@ -14,6 +14,27 @@ from database.database import definir_feedback, definir_metadado, obter_metadado
 from core.logger import get_logger
 
 logger = get_logger()
+
+# Telegram: grupos aceitam aproximadamente 20 mensagens/minuto.
+# 3.2s deixa uma pequena margem de segurança.
+_INTERVALO_MINIMO_POR_CHAT = 3.2
+_MAX_TENTATIVAS_TELEGRAM = 3
+
+_ultimo_envio_por_chat: dict[str, float] = {}
+
+
+def _aguardar_limite_chat(chat_id: str) -> None:
+    agora = time.monotonic()
+    ultimo_envio = _ultimo_envio_por_chat.get(chat_id)
+
+    if ultimo_envio is not None:
+        decorrido = agora - ultimo_envio
+        espera = _INTERVALO_MINIMO_POR_CHAT - decorrido
+
+        if espera > 0:
+            time.sleep(espera)
+
+    _ultimo_envio_por_chat[chat_id] = time.monotonic()
 
 def _chat_id_por_relevancia(pontos: int) -> str:
     if pontos >= 7:
@@ -46,39 +67,71 @@ def enviar_mensagem(
         "parse_mode": "HTML",
         "disable_web_page_preview": False,
     }
+
     # Telegram exige reply_markup como string JSON quando o corpo do POST é
-    # form-encoded (o `data=` abaixo) — passar o dict cru falha silenciosamente
-    # (o teclado não aparece, sem erro nenhum reportado pela API).
+    # form-encoded (o `data=` abaixo).
     if reply_markup is not None:
         payload["reply_markup"] = json.dumps(reply_markup)
 
-    try:
-        resposta = requests.post(url, data=payload, timeout=10)
-        resposta.raise_for_status()
-        return True
-    # MEDIDO: logar a exceção direta (`{e}`) põe a URL inteira no log —
-    # `url` tem o token embutido (bot{TOKEN}/sendMessage), e a mensagem
-    # padrão de erro de conexão do requests/urllib3 (ProxyError,
-    # ConnectionError...) inclui a URL completa que falhou. 6 ocorrências
-    # reais em jobradar.log confirmaram o vazamento: arquivo é gitignored
-    # (não vai pro repo) mas existe em disco e o GitHub Actions manda a
-    # mesma mensagem pro stdout do job, visível em log de execução. HTTPError
-    # (erro de resposta, ex: 401/403 do próprio Telegram) tem `.response`
-    # com status e motivo, sem token nenhum — loga isso. Qualquer outra
-    # RequestException (falha de conexão, nunca chegou a ter resposta) loga
-    # só o tipo da exceção — nunca `str(e)`, nunca `url`.
-    except requests.HTTPError as e:
-        status = e.response.status_code if e.response is not None else None
-        motivo = e.response.reason if e.response is not None else "sem detalhe"
-        logger.error(f"Erro ao enviar mensagem no Telegram: HTTP {status} ({motivo})")
-        return False
-    except requests.RequestException as e:
-        logger.error(
-            f"Erro ao enviar mensagem no Telegram: {type(e).__name__} "
-            "(falha de conexão, sem resposta do servidor)"
-        )
-        return False
+    for tentativa in range(1, _MAX_TENTATIVAS_TELEGRAM + 1):
+        _aguardar_limite_chat(str(destino))
 
+        try:
+            resposta = requests.post(url, data=payload, timeout=10)
+
+            if resposta.status_code == 429:
+                try:
+                    dados_erro = resposta.json()
+                except ValueError:
+                    dados_erro = {}
+
+                retry_after = (
+                    (dados_erro.get("parameters") or {}).get("retry_after")
+                    or 3
+                )
+
+                if tentativa < _MAX_TENTATIVAS_TELEGRAM:
+                    espera = int(retry_after) + 1
+
+                    logger.warning(
+                        "Telegram limitou o envio (HTTP 429). "
+                        f"Aguardando {espera}s antes da tentativa "
+                        f"{tentativa + 1}/{_MAX_TENTATIVAS_TELEGRAM}."
+                    )
+
+                    time.sleep(espera)
+                    continue
+
+            resposta.raise_for_status()
+            return True
+
+        except requests.HTTPError as e:
+            status = (
+                e.response.status_code
+                if e.response is not None
+                else None
+            )
+            motivo = (
+                e.response.reason
+                if e.response is not None
+                else "sem detalhe"
+            )
+
+            logger.error(
+                f"Erro ao enviar mensagem no Telegram: "
+                f"HTTP {status} ({motivo})"
+            )
+            return False
+
+        except requests.RequestException as e:
+            logger.error(
+                f"Erro ao enviar mensagem no Telegram: "
+                f"{type(e).__name__} "
+                "(falha de conexão, sem resposta do servidor)"
+            )
+            return False
+
+    return False
 
 def _linha_relevancia(pontos: int) -> str:
     """Renderiza Job.relevancia (0-10, ver pontuar_relevancia em job.py) como
