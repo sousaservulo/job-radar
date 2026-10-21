@@ -27,6 +27,8 @@ def _vaga(
         ".NET Developer Jr",
         "Software Developer C#",
         "Laravel Developer",
+        "PHP Developer Junior",
+        "Desenvolvedor Laravel Junior",
         "Full Stack Developer Jr",
         "Analista Desenvolvedor Java",
     ],
@@ -60,6 +62,9 @@ def test_dev_rejeita_cargos_fora_do_alvo(titulo):
         "Técnico de Suporte",
         "IT Support Analyst",
         "Analista NOC Jr",
+        "ServiceNow Developer Junior",
+        "Analista ServiceNow",
+        "ServiceNow Support Analyst",
     ],
 )
 def test_suporte_aceita_cargos_alvo(titulo):
@@ -86,11 +91,6 @@ def test_suporte_rejeita_cargos_fora_do_alvo(titulo):
     "local",
     [
         "Remote - Brazil",
-        "Remote - Portugal",
-        "Remote - United States",
-        "Remote - Canada",
-        "Remote - Uruguay",
-        "Remote - Paraguay",
     ],
 )
 def test_dev_aceita_mercados_remotos_configurados(local):

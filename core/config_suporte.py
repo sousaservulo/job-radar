@@ -17,6 +17,14 @@ KEYWORDS_CARGO_FORTE_SUPORTE = [
     "Support Engineer",
     "Analista NOC",
     "NOC Analyst",
+    "ServiceNow",
+    "ServiceNow Developer",
+    "Desenvolvedor ServiceNow",
+    "ServiceNow Junior",
+    "ServiceNow Analyst",
+    "Analista ServiceNow",
+    "ServiceNow Administrator",
+    "ServiceNow Support",
 ]
 
 KEYWORDS_CARGO_AMBIGUO_SUPORTE = [
@@ -44,11 +52,14 @@ QUALIFICADORES_SUPORTE = [
     "monitoramento",
     "noc",
     "sql",
+    "servicenow",
+    "itil",
 ]
 
 FERRAMENTAS_TITULO_SUPORTE = [
     "N1",
     "N2",
+    "ServiceNow",
 ]
 
 QUALIFICADORES_CARGO_SUPORTE = [
@@ -78,6 +89,14 @@ TERMOS_BUSCA_SUPORTE = [
     "suporte técnico",
     "analista noc",
     "noc analyst",
+    "servicenow",
+    "servicenow developer",
+    "desenvolvedor servicenow",
+    "servicenow junior",
+    "servicenow analyst",
+    "analista servicenow",
+    "servicenow administrator",
+    "servicenow support",
 ]
 
 TERMOS_POR_CICLO_SUPORTE = 8

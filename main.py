@@ -123,7 +123,7 @@ def _enviar_heartbeat_diario(
 
     hora_brasilia = datetime.now(timezone.utc).strftime("%H:%M UTC")
     if scrapers_com_problema:
-        status = f"{len(scrapers_com_problema)}/{total_fontes} fonte(s) com problema"
+        status = f"{len(scrapers_com_problema)}/{total_fontes} fonte(s) executada(s) com problema"
     else:
         status = "todas as fontes ok"
 
@@ -360,7 +360,7 @@ def ciclo_de_busca(perfil: Perfil):
     if scrapers and len(scrapers_com_problema) >= len(scrapers) / 2:
         enviar_mensagem(
             f"⚠️ <b>JobRadar {perfil.nome} com problema</b>\n\n"
-            f"{len(scrapers_com_problema)}/{len(scrapers)} fontes falharam ou voltaram "
+            f"{len(scrapers_com_problema)}/{len(scrapers)} fontes executadas falharam ou voltaram "
             f"vazias neste ciclo: {', '.join(scrapers_com_problema)}.\n\n"
             "Vale checar o log do GitHub Actions."
         )

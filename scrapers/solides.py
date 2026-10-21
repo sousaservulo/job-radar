@@ -1,7 +1,6 @@
-
 import time
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 from core.job import Job, extrair_data_publicacao
 from core.logger import get_logger
@@ -10,15 +9,6 @@ from scrapers.base import BaseScraper
 logger = get_logger()
 
 _MODALIDADES = {"remoto", "híbrido", "hibrido", "presencial"}
-
-# MEDIDO ao vivo (Claude in Chrome): scraper só puxava ?page=1, sempre — só
-# 10 vagas por termo, não importa quantas existam de verdade. "analista de
-# dados" sozinho tem 202 vaga(s) encontrada(s), 21 páginas de 10 (visto no
-# rodapé de paginação do site). ?page=N muda o resultado de verdade
-# (conferido página 1 vs. página 2 — títulos diferentes, sem repetição).
-# Mesmo raciocínio de gupy.py/indeed.py: 3 páginas por termo, equilíbrio
-# entre cobertura e custo por ciclo (aqui cobre até 30 de 202 pro termo mais
-# genérico, 3x o que tinha antes).
 MAX_PAGINAS = 3
 
 
@@ -27,7 +17,14 @@ def _slug(termo: str) -> str:
 
 
 class SolidesScraper(BaseScraper):
-    """Busca vagas no https://vagas.solides.com.br."""
+    """Busca vagas no portal público Sólides.
+
+    O portal mudou o markup em 2026 e o seletor antigo dos cards deixou de ser válido.
+    Em vez de depender da tag do card, usamos o elemento mais estável do
+    portal: links de detalhe ``/vaga/<id>``. O container do card é obtido
+    a partir do próprio link, tornando o scraper menos sensível a mudanças
+    de h2/h3/li/div.
+    """
 
     def __init__(self, termos_busca: list[str]):
         self.termos_busca = termos_busca
@@ -36,13 +33,13 @@ class SolidesScraper(BaseScraper):
         vagas: list[Job] = []
         for termo in self.termos_busca:
             vagas.extend(self._buscar_termo(termo))
-
         logger.info(f"[Solides] {len(vagas)} vaga(s) encontrada(s) no total")
         return vagas
 
     def _buscar_termo(self, termo: str) -> list[Job]:
         logger.info(f"[Solides] Buscando: {termo}")
         vagas: list[Job] = []
+        vistos: set[str] = set()
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -59,80 +56,81 @@ class SolidesScraper(BaseScraper):
             try:
                 for pagina in range(1, MAX_PAGINAS + 1):
                     url = f"https://vagas.solides.com.br/vagas/todos/{_slug(termo)}?page={pagina}"
-                    page.goto(url, timeout=60000)
-                    sem_resultados = False
-                    try:
-                        page.wait_for_selector("li:has(h2 a)", state="attached", timeout=25000)
-                    except Exception:
-                        # MEDIDO ao vivo: página além da última NÃO mostra "0
-                        # vaga(s) encontrada" (o texto continua com o total
-                        # real, ex: "202 vaga(s) encontrada") — só timeout de
-                        # verdade (site lento/bloqueio) e "passou da última
-                        # página" se parecem no comportamento (nenhum card
-                        # aparece), mas só a busca genuinamente vazia na
-                        # PÁGINA 1 tem o texto "0 vaga(s) encontrada" pra
-                        # diferenciar — mesma lógica de gupy.py.
-                        if pagina == 1 and "0 vaga(s) encontrada" in page.inner_text("body"):
-                            logger.info(f"[Solides] 0 resultados reais para '{termo}'.")
-                            sem_resultados = True
-                        elif pagina > 1:
-                            logger.warning(
-                                f"[Solides] Timeout esperando resultados na página {pagina} de "
-                                f"'{termo}' — parando de paginar (fim real dos resultados ou "
-                                "bloqueio, não dá pra diferenciar aqui)."
-                            )
-                            break
-                        else:
-                            raise
-                    if not sem_resultados:
-                        time.sleep(2)
+                    page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
-                    cards = [] if sem_resultados else page.query_selector_all("li:has(h2 a)")
-                    if not cards:
+                    try:
+                        page.wait_for_selector('a[href*="/vaga/"]', state="attached", timeout=25000)
+                    except PlaywrightTimeoutError:
+                        corpo = page.inner_text("body").lower()
+                        if pagina == 1 and (
+                            "0 vaga" in corpo
+                            or "nenhuma vaga" in corpo
+                            or "não encontramos" in corpo
+                        ):
+                            logger.info(f"[Solides] 0 resultados reais para '{termo}'.")
+                        else:
+                            logger.warning(
+                                f"[Solides] Nenhum link de vaga apareceu na página {pagina} de "
+                                f"'{termo}' — possível mudança de layout, bloqueio ou fim da paginação."
+                            )
                         break
 
-                    for card in cards:
+                    time.sleep(1)
+                    links = page.locator('a[href*="/vaga/"]')
+                    total_links = links.count()
+                    novos_na_pagina = 0
+
+                    for i in range(total_links):
                         try:
-                            titulo_el = card.query_selector("h2 a")
-                            if not titulo_el:
+                            link_el = links.nth(i)
+                            href = link_el.get_attribute("href")
+                            if not href or "/vaga/" not in href:
                                 continue
-                            titulo = titulo_el.inner_text().strip()
-
-                            link = titulo_el.get_attribute("href")
-                            if not link:
+                            link = href if href.startswith("http") else f"https://vagas.solides.com.br{href}"
+                            if link in vistos:
                                 continue
-                            if link.startswith("/"):
-                                link = f"https://vagas.solides.com.br{link}"
 
-                            paragrafos = card.query_selector_all("p")
-                            empresa = paragrafos[0].inner_text().strip() if len(paragrafos) > 0 else "Não informado"
-                            cidade = paragrafos[1].inner_text().strip() if len(paragrafos) > 1 else "Não informado"
+                            titulo = (link_el.inner_text() or "").strip()
+                            # Alguns layouts deixam "Ver Vaga" no link e o título
+                            # em um heading irmão/ancestral. Procura no card.
+                            card = link_el.locator("xpath=ancestor::*[self::article or self::li or self::div][1]")
+                            texto_card = card.inner_text().strip() if card.count() else ""
+                            if not titulo or titulo.lower() in {"ver vaga", "ver detalhes", "candidatar-se"}:
+                                heading = card.locator("h1, h2, h3, h4").first if card.count() else None
+                                if heading is not None and heading.count():
+                                    titulo = heading.inner_text().strip()
+                            if not titulo or titulo.lower() in {"ver vaga", "ver detalhes", "candidatar-se"}:
+                                continue
 
+                            linhas = [x.strip() for x in texto_card.splitlines() if x.strip()]
+                            empresa = "Não informado"
+                            local = "Não informado"
                             modalidade = ""
-                            for div in card.query_selector_all("div"):
-                                texto_div = div.inner_text().strip()
-                                if texto_div.lower() in _MODALIDADES:
-                                    modalidade = texto_div
-                                    break
-
-                            publicado_em = extrair_data_publicacao(card.inner_text())
-
+                            for linha in linhas:
+                                low = linha.lower()
+                                if low in _MODALIDADES:
+                                    modalidade = linha
+                                if " - " in linha and len(linha) <= 100 and local == "Não informado":
+                                    local = linha
+                            # Evita inventar empresa quando o novo layout não a expõe
+                            # claramente no card; o restante do pipeline aceita o fallback.
+                            publicado_em = extrair_data_publicacao(texto_card)
+                            vistos.add(link)
+                            novos_na_pagina += 1
                             vagas.append(Job(
                                 titulo=titulo,
-                                empresa=empresa or "Não informado",
-                                local=cidade,
+                                empresa=empresa,
+                                local=local,
                                 link=link,
                                 site="Solides",
                                 publicado_em=publicado_em,
                                 modalidade=modalidade,
                             ))
                         except Exception as e:
-                            logger.warning(f"[Solides] Erro ao processar card: {e}")
-                            continue
+                            logger.warning(f"[Solides] Erro ao processar vaga: {e}")
 
-                    if sem_resultados:
+                    if novos_na_pagina == 0:
                         break
-
             except Exception as e:
                 logger.error(f"[Solides] Erro ao buscar '{termo}': {e}")
             finally:

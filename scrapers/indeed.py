@@ -30,15 +30,26 @@ class IndeedScraper(BaseScraper):
 
     def buscar_vagas(self) -> list[Job]:
         vagas: list[Job] = []
+        falhas_consecutivas = 0
         for termo in self.termos_busca:
-            vagas.extend(self._buscar_termo(termo))
+            resultado, falhou_carregamento = self._buscar_termo(termo)
+            vagas.extend(resultado)
+            falhas_consecutivas = falhas_consecutivas + 1 if falhou_carregamento else 0
+            if falhas_consecutivas >= 2:
+                logger.warning(
+                    "[Indeed] Duas buscas consecutivas falharam no carregamento; "
+                    "interrompendo esta fonte neste ciclo para evitar repetir timeouts "
+                    "quando o runner estiver bloqueado pelo anti-bot."
+                )
+                break
 
         logger.info(f"[Indeed] {len(vagas)} vaga(s) encontrada(s) no total")
         return vagas
 
-    def _buscar_termo(self, termo: str) -> list[Job]:
+    def _buscar_termo(self, termo: str) -> tuple[list[Job], bool]:
         logger.info(f"[Indeed] Buscando: {termo}")
         vagas: list[Job] = []
+        falhou_carregamento = False
         # quote_plus em vez de .replace(" ", "+") manual: termo pode ter "&"
         # (ex: "BI & Analytics Analyst"), que sem escapar quebra a query
         # string no meio e corrompe a busca silenciosamente.
@@ -72,6 +83,7 @@ class IndeedScraper(BaseScraper):
                         # idêntico ao fim natural da paginação, e o aviso de
                         # "possível bloqueio anti-bot" nunca chegava a disparar
                         # — justamente no caso em que ele mais importa.
+                        falhou_carregamento = True
                         logger.warning(
                             f"[Indeed] Timeout esperando resultados na página {pagina + 1} "
                             f"de '{termo}' — parando de paginar por falha de carregamento "
@@ -135,4 +147,4 @@ class IndeedScraper(BaseScraper):
             finally:
                 browser.close()
 
-        return vagas
+        return vagas, falhou_carregamento
